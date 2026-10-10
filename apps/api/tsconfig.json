@@ -1,0 +1,21 @@
+{
+  "extends": "@meetly/typescript-config/nestjs.json",
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./dist",
+    "strictNullChecks": true,
+    "strictPropertyInitialization": false
+    // "paths": {
+    //   "@config/*": ["config/*"],
+    //   "@common/*": ["common/*"],
+    //   "@database/*": ["database/*"],
+    //   "@auth/*": ["auth/*"],
+    //   "@users/*": ["users/*"],
+    //   "@admin/*": ["admin/*"],
+    //   "@roles/*": ["roles/*"],
+    //   "@permissions/*": ["permissions/*"]
+    // }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
+}

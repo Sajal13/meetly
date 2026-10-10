@@ -1,5 +1,5 @@
 {
-  "name": "@repo/ui",
+  "name": "@meetly/ui",
   "version": "0.0.0",
   "private": true,
   "exports": {
@@ -11,16 +11,16 @@
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
-    "@types/node": "26.4.1",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.5",
-    "eslint": "10.9.1",
-    "typescript": "7.0.2"
+    "@meetly/eslint-config": "workspace:*",
+    "@meetly/typescript-config": "workspace:*",
+    "@types/node": "26.6.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.12.0",
+    "typescript": "6.0.3"
   },
   "dependencies": {
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   }
 }

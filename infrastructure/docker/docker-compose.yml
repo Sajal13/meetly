@@ -1,0 +1,350 @@
+name: meetly
+
+services:
+
+  # ==========================================================
+  # PostgreSQL
+  # ==========================================================
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: meetly-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-meetly}
+      POSTGRES_USER: ${POSTGRES_USER:-meetly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meetly}
+
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-meetly} -d ${POSTGRES_DB:-meetly}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - meetly
+
+
+  # ==========================================================
+  # Redis
+  # ==========================================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: meetly-redis
+
+    restart: unless-stopped
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    networks:
+      - meetly
+
+
+  # ==========================================================
+  # MinIO
+  # ----------------------------------------------------------
+  # quay.io/minio/minio and bitnamilegacy/minio are both frozen
+  # (MinIO stopped publishing free images Oct 2025; the Bitnami
+  # legacy repo is unmaintained). Using Chainguard's actively
+  # rebuilt, CVE-scanned MinIO image instead — same binary/env
+  # vars/CLI args as upstream, so this is a drop-in swap.
+  #
+  # NOTE: using the `-dev` tag here (not the minimal `latest`)
+  # because the minimal Chainguard runtime ships with no shell
+  # and no curl, which breaks the curl-based healthcheck below.
+  # The `-dev` variant keeps that healthcheck working as-is. For
+  # a hardened production deploy, drop to `latest` and replace
+  # the healthcheck with an orchestrator-native probe instead
+  # (e.g. a Kubernetes httpGet probe, which doesn't exec inside
+  # the container).
+  # ==========================================================
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest-dev
+    container_name: meetly-minio
+
+    restart: unless-stopped
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-meetly}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-meetly-development-password}
+
+    command: server /data --console-address ":9001"
+
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+
+    volumes:
+      - minio_data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:9000/minio/health/live"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - meetly
+
+
+  # ==========================================================
+  # MinIO bucket initialization
+  # ----------------------------------------------------------
+  # Same reasoning as above: `-dev` tag so `/bin/sh -c "..."`
+  # in the entrypoint keeps working. `mc` itself is unchanged.
+  # ==========================================================
+
+  minio-init:
+    image: cgr.dev/chainguard/minio-client:latest-dev
+    container_name: meetly-minio-init
+
+    depends_on:
+      minio:
+        condition: service_healthy
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-meetly}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-meetly-development-password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-meetly}
+
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000
+      $$MINIO_ROOT_USER
+      $$MINIO_ROOT_PASSWORD;
+      mc mb --ignore-existing local/$$MINIO_BUCKET;
+      mc anonymous set download local/$$MINIO_BUCKET/public;
+      exit 0;
+      "
+
+    networks:
+      - meetly
+
+
+  # ==========================================================
+  # NestJS API
+  # ==========================================================
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+      target: api
+
+    container_name: meetly-api
+
+    restart: unless-stopped
+
+    env_file:
+      - ../../.env
+
+    environment:
+      NODE_ENV: production
+
+      DATABASE_URL: postgresql://${POSTGRES_USER:-meetly}:${POSTGRES_PASSWORD:-meetly}@postgres:5432/${POSTGRES_DB:-meetly}
+
+      REDIS_URL: redis://redis:6379
+
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-meetly}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-meetly-development-password}
+      S3_BUCKET: ${MINIO_BUCKET:-meetly}
+      S3_FORCE_PATH_STYLE: "true"
+
+    ports:
+      - "${API_PORT:-4000}:4000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+      minio:
+        condition: service_healthy
+
+      minio-init:
+        condition: service_completed_successfully
+
+    networks:
+      - meetly
+
+
+  # ==========================================================
+  # Next.js Web
+  # ==========================================================
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+      target: web
+
+    container_name: meetly-web
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+    depends_on:
+      - api
+
+    networks:
+      - meetly
+
+
+  # ==========================================================
+  # Next.js Admin
+  # ==========================================================
+
+  # admin:
+  #   build:
+  #     context: ../..
+  #     dockerfile: infrastructure/docker/Dockerfile
+  #     target: admin
+
+  #   container_name: meetly-admin
+
+  #   restart: unless-stopped
+
+  #   environment:
+  #     NODE_ENV: production
+  #     NEXT_TELEMETRY_DISABLED: "1"
+
+  #     NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+
+  #   ports:
+  #     - "${ADMIN_PORT:-3001}:3001"
+
+  #   depends_on:
+  #     - api
+
+  #   networks:
+  #     - meetly
+
+
+  # ==========================================================
+  # BullMQ Worker
+  # ==========================================================
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+      target: api
+
+    container_name: meetly-worker
+
+    restart: unless-stopped
+
+    env_file:
+      - ../../.env
+
+    environment:
+      NODE_ENV: production
+
+      DATABASE_URL: postgresql://${POSTGRES_USER:-meetly}:${POSTGRES_PASSWORD:-meetly}@postgres:5432/${POSTGRES_DB:-meetly}
+
+      REDIS_URL: redis://redis:6379
+
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-meetly}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-meetly-development-password}
+      S3_BUCKET: ${MINIO_BUCKET:-meetly}
+      S3_FORCE_PATH_STYLE: "true"
+
+    command:
+      [
+        "node",
+        "apps/api/dist/worker.js"
+      ]
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+      minio:
+        condition: service_healthy
+
+    networks:
+      - meetly
+
+
+# ============================================================
+# Volumes
+# ============================================================
+
+volumes:
+
+  postgres_data:
+    name: meetly-postgres-data
+
+  redis_data:
+    name: meetly-redis-data
+
+  minio_data:
+    name: meetly-minio-data
+
+
+# ============================================================
+# Network
+# ============================================================
+
+networks:
+
+  meetly:
+    name: meetly-network
+    driver: bridge
