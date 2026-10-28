@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -42,7 +42,7 @@ async function bootstrap() {
   );
 
   // ---- CORS: exact allow-list, never '*' — required once credentials:true ----
-  const allowedOrigins = (config.get<string>('CORS_ORIGINS') ?? '')
+  const allowedOrigins = (config.get<string>('CORS_ORIGIN') ?? '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
@@ -73,7 +73,7 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   // ---- Normalize every error response; never leak stack traces to clients ----
-  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   // ---- Close DB/Redis cleanly on SIGTERM (matters once this runs in Docker/k8s) ----
   app.enableShutdownHooks();

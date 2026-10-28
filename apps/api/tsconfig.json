@@ -4,7 +4,7 @@
     "rootDir": "./",
     "outDir": "./dist",
     "strictNullChecks": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
     // "paths": {
     //   "@config/*": ["config/*"],
     //   "@common/*": ["common/*"],
@@ -15,7 +15,8 @@
     //   "@roles/*": ["roles/*"],
     //   "@permissions/*": ["permissions/*"]
     // }
+    "types": ["node"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/database/migrations/.gitkeep"],
   "exclude": ["node_modules", "dist", "test"]
 }

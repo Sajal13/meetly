@@ -1,8 +1,27 @@
+# Local secrets — never send to the build context or bake into layers
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Dependencies and build output (rebuilt inside the image)
 node_modules
 **/node_modules
 .turbo
 **/.turbo
-dist
-**/dist
-.next
 **/.next
+**/dist
+**/coverage
+
+# VCS / editor / OS
+.git
+.gitignore
+.vscode
+.DS_Store
+*.log
+
+# Not needed in images
+docs
+apps/mobile

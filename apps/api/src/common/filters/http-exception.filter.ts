@@ -15,20 +15,19 @@ interface RequestWithId extends Request {
 }
 
 /**
- * Converts every thrown error into the standard error envelope from
- * 05-api/api-standards.md:
- * { success: false, error: { code, message } }
+ * Converts every thrown error into the standard ApiErrorResponse envelope:
+ * { success: false, statusCode, code, message, details?, timestamp, path, requestId? }
  */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<RequestWithId>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let code: string = ErrorCode.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let details: unknown;
@@ -37,34 +36,52 @@ export class HttpExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
       const body = exception.getResponse();
 
+      code = this.codeForStatus(status);
+
       if (typeof body === 'string') {
         message = body;
-        code = this.codeForStatus(status);
       } else if (typeof body === 'object' && body !== null) {
         const b = body as Record<string, unknown>;
-        code = (b.code as string) ?? this.codeForStatus(status);
-        message =
-          (b.message as string) ??
-          (Array.isArray(b.message)
-            ? (b.message as string[]).join(', ')
-            : message);
-        details =
-          b.details ?? (Array.isArray(b.message) ? b.message : undefined);
+
+        if (typeof b.code === 'string') {
+          code = b.code;
+        }
+
+        if (Array.isArray(b.message)) {
+          // class-validator / ValidationPipe errors
+          message = 'Validation failed';
+          details = b.details ?? b.message;
+        } else if (typeof b.message === 'string') {
+          message = b.message;
+          details = b.details;
+        } else {
+          details = b.details;
+        }
       }
-    } else if (exception instanceof Error) {
-      this.logger.error(exception.message, exception.stack);
     }
+
+    const requestId =
+      request.id ??
+      (typeof request.headers['x-request-id'] === 'string'
+        ? request.headers['x-request-id']
+        : undefined);
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `[${request.id ?? 'no-request-id'}] ${request.method} ${request.url}`,
+        `[${requestId ?? 'no-request-id'}] ${request.method} ${request.originalUrl ?? request.url}`,
         exception instanceof Error ? exception.stack : String(exception)
       );
     }
 
     const errorBody: ApiErrorResponse = {
       success: false,
-      error: { code, message, ...(details ? { details } : {}) }
+      statusCode: status,
+      code,
+      message,
+      ...(details !== undefined && details !== null ? { details } : {}),
+      timestamp: new Date().toISOString(),
+      path: request.originalUrl ?? request.url,
+      ...(requestId ? { requestId } : {})
     };
 
     response.status(status).json(errorBody);

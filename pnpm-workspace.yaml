@@ -5,6 +5,7 @@ allowBuilds:
   '@parcel/watcher': true
   '@scarf/scarf': true
   '@swc/core': true
+  bcrypt: true
   msgpackr-extract: true
   node: true
   pnpm: true
