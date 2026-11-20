@@ -5,16 +5,16 @@
     "outDir": "./dist",
     "strictNullChecks": true,
     "strictPropertyInitialization": false,
-    // "paths": {
-    //   "@config/*": ["config/*"],
-    //   "@common/*": ["common/*"],
-    //   "@database/*": ["database/*"],
-    //   "@auth/*": ["auth/*"],
-    //   "@users/*": ["users/*"],
-    //   "@admin/*": ["admin/*"],
-    //   "@roles/*": ["roles/*"],
-    //   "@permissions/*": ["permissions/*"]
-    // }
+    "paths": {
+      "@config/*": ["./src/config/*"],
+      "@common/*": ["./src/common/*"],
+      "@database/*": ["./src/database/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@users/*": ["./src/users/*"],
+      "@admin/*": ["./src/admin/*"],
+      "@roles/*": ["./src/roles/*"],
+      "@permissions/*": ["./src/permissions/*"]
+    },
     "types": ["node"]
   },
   "include": ["src/**/*", "src/database/migrations/.gitkeep"],

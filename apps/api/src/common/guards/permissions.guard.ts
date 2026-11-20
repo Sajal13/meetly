@@ -7,6 +7,8 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { AuthenticatedAdminRequest } from '../types/request.types';
+import { ErrorCode } from '@common/exceptions/error-codes';
+import { ROLE_SUPER_ADMIN } from '@config/constants/rabc.constant';
 
 /**
  * Enforces the permission-based RBAC architecture principle.
@@ -29,6 +31,20 @@ export class PermissionsGuard implements CanActivate {
     const request = context
       .switchToHttp()
       .getRequest<AuthenticatedAdminRequest>();
+
+    const admin = request.admin;
+
+    if (!admin) {
+      throw new ForbiddenException({
+        code: ErrorCode.INSUFFICIENT_PERMISSIONS,
+        message: 'You do not have permission to perform this action.'
+      });
+    }
+
+    if (admin.roles.includes(ROLE_SUPER_ADMIN)) {
+      return true;
+    }
+
     const granted = new Set(request.admin?.permissions ?? []);
     const hasAll = requiredPermissions.every((p) => granted.has(p));
 

@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
+import { StringValue } from 'ms';
 
 interface AuthBlock {
   accessSecret: string;
-  accessTtl: string;
+  accessTtl: StringValue;
   refreshSecret: string;
-  refreshTtl: string;
+  refreshTtl: StringValue;
+  mfaSecret: string;
+  mfaTtl: StringValue;
 }
 
 /**
@@ -69,7 +72,14 @@ export class AppConfigService {
     return this.config.get('auth.admin')!;
   }
 
-  get otp(): { gmailUser: string; gmailAppPassword: string } {
+  get otp(): {
+    gmailUser: string;
+    gmailAppPassword: string;
+    hmacSecret: string;
+    ttlSeconds: number;
+    resendCooldownSeconds: number;
+    maxAttempts: number;
+  } {
     return this.config.get('auth.otp')!;
   }
 

@@ -10,4 +10,8 @@ import { ADMIN_ACCESS_STRATEGY } from '../../config/constants/auth.constants';
  * not globally, since apps/api serves both the user and admin apps.
  */
 @Injectable()
-export class AdminAuthGuard extends AuthGuard(ADMIN_ACCESS_STRATEGY) {}
+export class AdminAuthGuard extends AuthGuard(ADMIN_ACCESS_STRATEGY) {
+  getAuthenticateOptions() {
+    return { property: 'admin' };
+  }
+}

@@ -5,7 +5,10 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
+  Max,
   Min,
+  MinLength,
   validateSync
 } from 'class-validator';
 
@@ -15,6 +18,10 @@ enum Environment {
   Staging = 'staging',
   Production = 'production'
 }
+
+/** Accepts values `ms` understands, e.g. "15m", "30d", "1h". */
+const TTL_PATTERN = /^\d+\s?(ms|s|m|h|d|w|y)$/;
+const TTL_MESSAGE = '$property must look like "15m", "12h" or "30d"';
 
 /**
  * Typed environment contract for the API.
@@ -59,30 +66,61 @@ class EnvironmentVariables {
   @IsInt()
   REDIS_PORT: number = 6379;
 
-  // --- Authentication ---
+  // --- Authentication: JWT ---
   @IsString()
   USER_ACCESS_TOKEN_SECRET: string;
 
-  @IsString()
+  @Matches(TTL_PATTERN, { message: TTL_MESSAGE })
   USER_ACCESS_TOKEN_TTL: string = '15m';
 
   @IsString()
   USER_REFRESH_TOKEN_SECRET: string;
 
-  @IsString()
+  @Matches(TTL_PATTERN, { message: TTL_MESSAGE })
   USER_REFRESH_TOKEN_TTL: string = '30d';
 
   @IsString()
   ADMIN_ACCESS_TOKEN_SECRET: string;
 
-  @IsString()
+  @Matches(TTL_PATTERN, { message: TTL_MESSAGE })
   ADMIN_ACCESS_TOKEN_TTL: string = '30m';
 
   @IsString()
   ADMIN_REFRESH_TOKEN_SECRET: string;
 
-  @IsString()
+  @Matches(TTL_PATTERN, { message: TTL_MESSAGE })
   ADMIN_REFRESH_TOKEN_TTL: string = '7d';
+
+  /** Short-lived step-up token issued after the password check, before the MFA code. */
+  @IsString()
+  ADMIN_MFA_TOKEN_SECRET: string;
+
+  @Matches(TTL_PATTERN, { message: TTL_MESSAGE })
+  ADMIN_MFA_TOKEN_TTL: string = '5m';
+
+  // --- Authentication: OTP ---
+  /** Key used to HMAC OTP codes before storing them. Generate 48+ random bytes. */
+  @IsString()
+  @MinLength(32)
+  OTP_HMAC_SECRET: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  @Max(900)
+  OTP_TTL_SECONDS: number = 300;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(600)
+  OTP_RESEND_COOLDOWN_SECONDS: number = 60;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  OTP_MAX_ATTEMPTS: number = 5;
 
   // --- OTP delivery (Gmail SMTP) ---
   @IsOptional()

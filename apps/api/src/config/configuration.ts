@@ -19,15 +19,6 @@ export default () => ({
   },
 
   auth: {
-    // NOTE: both user and admin blocks intentionally share the exact same
-    // shape (accessSecret / accessTtl / refreshSecret / refreshTtl). This
-    // isn't just style — TokenService, both passport strategies, and
-    // AdminAuthService all destructure whichever one applies through the
-    // same code path (`type === 'user' ? config.userAuth : config.adminAuth`),
-    // so a renamed or miscased key in only one block (e.g. "refreshToken"
-    // instead of "refreshSecret") fails *silently*: it signs/verifies with
-    // `undefined` as the secret rather than throwing, until a token refuses
-    // to validate in a very confusing way. Keep these two in sync.
     user: {
       accessSecret: process.env.USER_ACCESS_TOKEN_SECRET ?? '',
       accessTtl: process.env.USER_ACCESS_TOKEN_TTL ?? '15m',
@@ -38,14 +29,20 @@ export default () => ({
       accessSecret: process.env.ADMIN_ACCESS_TOKEN_SECRET ?? '',
       accessTtl: process.env.ADMIN_ACCESS_TOKEN_TTL ?? '30m',
       refreshSecret: process.env.ADMIN_REFRESH_TOKEN_SECRET ?? '',
-      refreshTtl: process.env.ADMIN_REFRESH_TOKEN_TTL ?? '7d'
+      refreshTtl: process.env.ADMIN_REFRESH_TOKEN_TTL ?? '7d',
+      mfaSecret: process.env.ADMIN_MFA_SECRET_TOKEN ?? '',
+      mfaTtl: process.env.ADMIN_MFA_SECRET_TOKEN_TTL ?? '7d'
     },
-    // Consumed once OtpService is wired to a real transport (Gmail SMTP
-    // via nodemailer, most likely, given these var names). Currently
-    // OtpService just logs the code — see otp/otp.service.ts.
     otp: {
       gmailUser: process.env.GMAIL_USER ?? '',
-      gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? ''
+      gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? '',
+      hmacSecret: process.env.OTP_HMAC_SECRET ?? '',
+      ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '300', 10),
+      resendCooldownSeconds: parseInt(
+        process.env.OTP_RESEND_COOLDOWN_SECONDS ?? '60',
+        10
+      ),
+      maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS ?? '5', 10)
     }
   },
 
@@ -62,11 +59,6 @@ export default () => ({
     bucket: process.env.MINIO_BUCKET ?? 'meetly'
   },
 
-  // Generic S3-compatible client config (MinIO locally, real AWS S3 in
-  // prod — same shape, just different env values). The bucket name is
-  // intentionally read from MINIO_BUCKET rather than a separate S3_BUCKET
-  // var, since there's only ever one bucket in play right now; see
-  // env.validation.ts.
   storage: {
     endpoint: process.env.S3_ENDPOINT ?? '',
     region: process.env.S3_REGION ?? 'us-east-1',

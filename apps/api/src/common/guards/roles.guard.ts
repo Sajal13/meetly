@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { AuthenticatedAdminRequest } from '../types/request.types';
+import { ErrorCode } from '@common/exceptions/error-codes';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -30,7 +31,7 @@ export class RolesGuard implements CanActivate {
 
     if (!hasAny) {
       throw new ForbiddenException({
-        code: 'INSUFFICIENT_ROLE',
+        code: ErrorCode.INSUFFICIENT_ROLE,
         message: 'You do not have the required role for this action'
       });
     }
